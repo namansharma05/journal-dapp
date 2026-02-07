@@ -26,7 +26,7 @@ export function Journal() {
   const walletAddress = wallet?.account.address;
 
   // Derive vault PDA when wallet connects
-  useEffect(() => {}, [walletAddress]);
+  const createEntry = useEffect(() => {}, [walletAddress]);
 
   if (status !== "connected") {
     return (
