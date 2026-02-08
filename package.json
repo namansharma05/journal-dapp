@@ -1,5 +1,6 @@
 {
   "name": "journal-entry",
+  "type": "module",
   "scripts": {
     "anchor-build": "cd anchor && anchor build",
     "anchor-test": "cd anchor && anchor test --skip-deploy",
@@ -29,6 +30,8 @@
     "@solana/client": "^1.2.0",
     "@solana/kit": "^5.1.0",
     "@solana/react-hooks": "^1.1.5",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
     "next": "16.0.10",
     "react": "19.2.3",
     "react-dom": "19.2.3",
