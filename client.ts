@@ -1,7 +1,10 @@
 import {
     appendTransactionMessageInstruction,
+    createKeyPairFromBytes,
+    createSignerFromKeyPair,
     createSolanaRpc,
     createSolanaRpcSubscriptions,
+    getBase58Encoder,
     sendAndConfirmTransactionFactory,
     type Rpc,
     type RpcSubscriptions,
@@ -12,7 +15,8 @@ import {
     type TransactionSigner,
 } from '@solana/kit';
 import { estimateComputeUnitLimitFactory, getSetComputeUnitLimitInstruction } from '@solana-program/compute-budget';
-import { loadKeypairFromEnv } from "@solana/client/server";
+// import { loadKeypairFromEnv } from "@solana/client/server";
+// import { getKeypairFromEnvironment } from '@solana-developers/helpers';
  
 function estimateAndSetComputeUnitLimitFactory(...params: Parameters<typeof estimateComputeUnitLimitFactory>) {
     const estimateComputeUnitLimit = estimateComputeUnitLimitFactory(...params);
@@ -42,7 +46,11 @@ export async function createClient(): Promise<Client> {
         const rpc = createSolanaRpc(process.env.NEXT_PUBLIC_RPC_URL as string);
         const rpcSubscriptions = createSolanaRpcSubscriptions(process.env.NEXT_PUBLIC_RPC_SUB as string);
 
-        const wallet = (await loadKeypairFromEnv(process.env.NEXT_PUBLIC_PRIVATE_KEY as string)).signer;
+        const wallet = await createSignerFromKeyPair(
+            await createKeyPairFromBytes(
+                getBase58Encoder().encode(process.env.NEXT_PUBLIC_PRIVATE_KEY as string)
+            )
+        );
 
         const sendAndConfirmTransaction = sendAndConfirmTransactionFactory({
             rpc,
