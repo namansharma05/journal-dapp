@@ -2,15 +2,14 @@ import {
     appendTransactionMessageInstruction,
     createSolanaRpc,
     createSolanaRpcSubscriptions,
-    MessageSigner,
-    Rpc,
-    RpcSubscriptions,
     sendAndConfirmTransactionFactory,
-    SolanaRpcApi,
-    SolanaRpcSubscriptionsApi,
-    TransactionMessage,
-    TransactionMessageWithFeePayer,
-    TransactionSigner,
+    type Rpc,
+    type RpcSubscriptions,
+    type SolanaRpcApi,
+    type SolanaRpcSubscriptionsApi,
+    type TransactionMessage,
+    type TransactionMessageWithFeePayer,
+    type TransactionSigner,
 } from '@solana/kit';
 import { estimateComputeUnitLimitFactory, getSetComputeUnitLimitInstruction } from '@solana-program/compute-budget';
 import { loadKeypairFromEnv } from "@solana/client/server";
@@ -33,7 +32,7 @@ export type Client = {
     rpc: Rpc<SolanaRpcApi>;
     rpcSubscriptions: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
     sendAndConfirmTransaction: ReturnType<typeof sendAndConfirmTransactionFactory>;
-    wallet: TransactionSigner & MessageSigner; 
+    wallet: TransactionSigner; 
 };
  
 let client: Client | undefined;

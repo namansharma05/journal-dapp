@@ -25,15 +25,16 @@ import {
   type ParsedDeleteJournalEntryInstruction,
   type ParsedInitializeCounterInstruction,
   type ParsedUpdateJournalEntryInstruction,
-} from "../instructions";
+} from "../instructions/index.ts";
 
 export const JOURNAL_PROGRAM_ADDRESS =
   "91be9qkpnxDk6vrFc1fpxz7pxB3Ec5aAhgVussaw1VSj" as Address<"91be9qkpnxDk6vrFc1fpxz7pxB3Ec5aAhgVussaw1VSj">;
 
-export enum JournalAccount {
-  JournalEntryCounterState,
-  JournalEntryState,
-}
+export const JournalAccount = {
+  JournalEntryCounterState: 0,
+  JournalEntryState: 1,
+} as const;
+export type JournalAccount = (typeof JournalAccount)[keyof typeof JournalAccount];
 
 export function identifyJournalAccount(
   account: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
@@ -66,12 +67,13 @@ export function identifyJournalAccount(
   );
 }
 
-export enum JournalInstruction {
-  CreateJournalEntry,
-  DeleteJournalEntry,
-  InitializeCounter,
-  UpdateJournalEntry,
-}
+export const JournalInstruction = {
+  CreateJournalEntry: 0,
+  DeleteJournalEntry: 1,
+  InitializeCounter: 2,
+  UpdateJournalEntry: 3,
+} as const;
+export type JournalInstruction = (typeof JournalInstruction)[keyof typeof JournalInstruction];
 
 export function identifyJournalInstruction(
   instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
@@ -130,16 +132,16 @@ export type ParsedJournalInstruction<
   TProgram extends string = "91be9qkpnxDk6vrFc1fpxz7pxB3Ec5aAhgVussaw1VSj",
 > =
   | ({
-      instructionType: JournalInstruction.CreateJournalEntry;
+      instructionType: (typeof JournalInstruction)["CreateJournalEntry"];
     } & ParsedCreateJournalEntryInstruction<TProgram>)
   | ({
-      instructionType: JournalInstruction.DeleteJournalEntry;
+      instructionType: (typeof JournalInstruction)["DeleteJournalEntry"];
     } & ParsedDeleteJournalEntryInstruction<TProgram>)
   | ({
-      instructionType: JournalInstruction.InitializeCounter;
+      instructionType: (typeof JournalInstruction)["InitializeCounter"];
     } & ParsedInitializeCounterInstruction<TProgram>)
   | ({
-      instructionType: JournalInstruction.UpdateJournalEntry;
+      instructionType: (typeof JournalInstruction)["UpdateJournalEntry"];
     } & ParsedUpdateJournalEntryInstruction<TProgram>);
 
 export function parseJournalInstruction<TProgram extends string>(

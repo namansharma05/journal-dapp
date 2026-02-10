@@ -44,7 +44,7 @@ import {
   expectSome,
   getAccountMetaFactory,
   type ResolvedAccount,
-} from "../shared";
+} from "../shared/index.ts";
 
 export const UPDATE_JOURNAL_ENTRY_DISCRIMINATOR = new Uint8Array([
   113, 164, 49, 62, 43, 83, 194, 172,

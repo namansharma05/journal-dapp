@@ -39,7 +39,7 @@ import {
   expectSome,
   getAccountMetaFactory,
   type ResolvedAccount,
-} from "../shared";
+} from "../shared/index.ts";
 
 export const DELETE_JOURNAL_ENTRY_DISCRIMINATOR = new Uint8Array([
   156, 50, 93, 5, 157, 97, 188, 114,
