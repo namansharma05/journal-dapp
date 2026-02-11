@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import cors  from "cors";
 import {
   appendTransactionMessageInstruction,
   assertIsSendableTransaction,
@@ -22,6 +23,8 @@ import {
 dotenv.config();
 
 const app = express();
+
+app.use(cors());
 
 const PORT = process.env.NEXT_PUBLIC_PORT;
 
@@ -69,6 +72,9 @@ async function initializeCounter() {
   }
 }
 
+app.get("/", (req, res) => {
+  res.send("Hello World!");
+});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

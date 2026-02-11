@@ -26,19 +26,19 @@ export function Journal() {
   const walletAddress = wallet?.account.address;
 
   // Derive vault PDA when wallet connects
-  const createEntry = useEffect(() => {}, [walletAddress]);
+  const createEntry = useEffect(() => {
+    fetch("https://localhost:3000/").then(
+      response => response.json()
+    ).then(
+      data => console.log(data)
+    )
+  }, [walletAddress]);
 
   if (status !== "connected") {
     return (
       <section className="w-full max-w-3xl space-y-4 rounded-2xl border border-border-low bg-card p-6 shadow-[0_20px_80px_-50px_rgba(0,0,0,0.35)]">
-        <div className="space-y-1">
-          <p className="text-lg font-semibold">SOL Vault</p>
-          <p className="text-sm text-muted">
-            Connect your wallet to interact with the vault program.
-          </p>
-        </div>
-        <div className="rounded-lg bg-cream/50 p-4 text-center text-sm text-muted">
-          Wallet not connected
+        <div className="">
+
         </div>
       </section>
     );
