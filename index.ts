@@ -10,9 +10,14 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   getSignatureFromTransaction,
+  getProgramDerivedAddress,
+  getBase64Codec,
 } from "@solana/kit";
 import { createClient } from "./client.ts";
-import  {getInitializeCounterInstructionAsync}  from "./app/generated/journal/index.ts";
+import {
+  getInitializeCounterInstructionAsync,
+  fetchJournalEntryCounterState,
+} from "./app/generated/journal/index.ts";
 
 dotenv.config();
 
@@ -20,11 +25,7 @@ const app = express();
 
 const PORT = process.env.NEXT_PUBLIC_PORT;
 
-app.get("/", (req, res) => {
-  res.json({ message: "hello world!" });
-});
-
-app.post("/initialize-counter", async (req, res) => {
+async function initializeCounter() {
   try {
     const client = await createClient();
 
@@ -35,6 +36,8 @@ app.post("/initialize-counter", async (req, res) => {
     const createCounterAccountIx = await getInitializeCounterInstructionAsync({
       signer: client.wallet,
     });
+
+    console.log("createCounterAccountIx", createCounterAccountIx);
 
     const transactionMessage = await pipe(
       createTransactionMessage({ version: 0 }),
@@ -55,16 +58,20 @@ app.post("/initialize-counter", async (req, res) => {
     });
 
     const signature = getSignatureFromTransaction(transaction);
-    res.json({
-      message: "Counter initialized successfully",
-      signature: signature,
-    });
+
+    const journalCounterAccountPda = createCounterAccountIx.accounts[1].address;
+    const counterAccount = await fetchJournalEntryCounterState(client.rpc, journalCounterAccountPda);
+    console.log("Counter Account Data:", counterAccount.data);
+    console.log("Current Count:", counterAccount.data.count);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Internal server error", error: error instanceof Error ? error.message : String(error) });
+    // res.status(500).json({ message: "Internal server error", error: error instanceof Error ? error.message : String(error) });
   }
-});
+}
+
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
+initializeCounter();
