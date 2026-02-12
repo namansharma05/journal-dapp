@@ -6,7 +6,7 @@ export function Wallet() {
 
   const address = wallet?.account.address.toString();
   return (
-    <main className="flex justify-center items-center min-h-screen">
+    <main className="flex justify-center min-h-[40vh]">
       <section className="w-full max-w-3xl space-y-4 rounded-2xl border border-border-low bg-card p-6 shadow-[0_20px_80px_-50px_rgba(0,0,0,0.35)]">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
