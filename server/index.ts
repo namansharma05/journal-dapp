@@ -11,14 +11,12 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   getSignatureFromTransaction,
-  getProgramDerivedAddress,
-  getBase64Codec,
 } from "@solana/kit";
 import { createClient } from "./client.ts";
 import {
   getInitializeCounterInstructionAsync,
-  fetchJournalEntryCounterState,
-} from "./app/generated/journal/index.ts";
+  fetchMaybeJournalEntryCounterState,
+} from "../app/generated/journal/index.ts";
 
 dotenv.config();
 
@@ -40,6 +38,23 @@ async function initializeCounter() {
       signer: client.wallet,
     });
 
+    const journalCounterAccountPda = createCounterAccountIx.accounts[1].address;
+
+    // Check if the counter account already exists
+    const maybeCounterAccount = await fetchMaybeJournalEntryCounterState(
+      client.rpc,
+      journalCounterAccountPda
+    );
+
+    if (maybeCounterAccount.exists) {
+      console.log(
+        "Counter Account already exists. Current Count:",
+        maybeCounterAccount.data.count
+      );
+      return;
+    }
+
+    console.log("Initializing Counter Account...");
     console.log("createCounterAccountIx", createCounterAccountIx);
 
     const transactionMessage = await pipe(
@@ -61,14 +76,18 @@ async function initializeCounter() {
     });
 
     const signature = getSignatureFromTransaction(transaction);
+    console.log("Counter Account Initialized. Signature:", signature);
 
-    const journalCounterAccountPda = createCounterAccountIx.accounts[1].address;
-    const counterAccount = await fetchJournalEntryCounterState(client.rpc, journalCounterAccountPda);
-    console.log("Counter Account Data:", counterAccount.data);
-    console.log("Current Count:", counterAccount.data.count);
+    const counterAccount = await fetchMaybeJournalEntryCounterState(
+      client.rpc,
+      journalCounterAccountPda
+    );
+    if (counterAccount.exists) {
+      console.log("Counter Account Data:", counterAccount.data);
+      console.log("Current Count:", counterAccount.data.count);
+    }
   } catch (error) {
-    console.error(error);
-    // res.status(500).json({ message: "Internal server error", error: error instanceof Error ? error.message : String(error) });
+    console.error("Error during counter initialization:", error);
   }
 }
 
@@ -78,6 +97,5 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+  initializeCounter();
 });
-
-initializeCounter();
