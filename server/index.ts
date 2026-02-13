@@ -95,6 +95,12 @@ app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 
+app.post("/create/journal-entry", (req, res) => {
+  const { title, message} = req.body;
+  console.log("title", title);
+  console.log("message", message);
+});
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   initializeCounter();
