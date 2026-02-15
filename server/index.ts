@@ -13,11 +13,21 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   getSignatureFromTransaction,
+  getProgramDerivedAddress,
+  getU32Encoder,
+  getUtf8Encoder,
+  getAddressEncoder,
+  getBase58Encoder,
 } from "@solana/kit";
 import { createClient } from "./client.ts";
 import {
   getInitializeCounterInstructionAsync,
   fetchMaybeJournalEntryCounterState,
+  getCreateJournalEntryInstruction,
+  getCreateJournalEntryInstructionAsync,
+  JOURNAL_PROGRAM_ADDRESS,
+  decodeJournalEntryState,
+  getJournalEntryStateDiscriminatorBytes,
 } from "../app/generated/journal/index.ts";
 
 import fs from "fs";
@@ -113,11 +123,134 @@ async function initializeCounter() {
   }
 }
 
-app.post("/create/journal-entry", (req, res) => {
+app.post("/create/journal-entry", async(req, res) => {
   const { title, message } = req.body;
-  console.log("title", title);
-  console.log("message", message);
-  res.status(200).json({ message: "Journal entry created" });
+  try {
+    const client = await createClient();
+
+    const [{ value: latestBlockhash }] = await Promise.all([
+      client.rpc.getLatestBlockhash().send(),
+    ]);
+
+    // 1. Derive the counter PDA (same as in initializeCounter)
+    const [journalEntryCounterAccount] = await getProgramDerivedAddress({
+      programAddress: JOURNAL_PROGRAM_ADDRESS,
+      seeds: [getUtf8Encoder().encode("journal-counter")],
+    });
+
+    // 2. Fetch the current count to derive the journal entry PDA
+    const maybeCounterAccount = await fetchMaybeJournalEntryCounterState(
+      client.rpc,
+      journalEntryCounterAccount
+    );
+
+    if (!maybeCounterAccount.exists) {
+      return res.status(400).json({ error: "Counter not initialized" });
+    }
+
+    const currentCount = maybeCounterAccount.data.count;
+
+    // 3. Derive the journal entry PDA: [b"journal-entry", count, signer]
+    const [journalEntryAccount] = await getProgramDerivedAddress({
+      programAddress: JOURNAL_PROGRAM_ADDRESS,
+      seeds: [
+        getUtf8Encoder().encode("journal-entry"),
+        getU32Encoder().encode(currentCount),
+        getAddressEncoder().encode(client.wallet.address),
+      ],
+    });
+
+    console.log(`Creating journal entry at: ${journalEntryAccount}`);
+
+    const createNewJournalentryIx = await getCreateJournalEntryInstructionAsync({
+      signer: client.wallet,
+      title,
+      message,
+      journalEntryAccount,
+    });
+
+    const transactionMessage = await pipe(
+      createTransactionMessage({ version: 0 }),
+      (tx) => setTransactionMessageFeePayerSigner(client.wallet, tx),
+      (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+      (tx) => appendTransactionMessageInstruction(createNewJournalentryIx, tx),
+      (tx) => client.estimateAndSetComputeUnitLimit(tx)
+    );
+
+    const transaction = await signTransactionMessageWithSigners(
+      transactionMessage
+    );
+    assertIsSendableTransaction(transaction);
+    assertIsTransactionWithBlockhashLifetime(transaction);
+
+    await client.sendAndConfirmTransaction(transaction, {
+      commitment: "confirmed",
+    });
+
+    const signature = getSignatureFromTransaction(transaction);
+    console.log("Journal Entry Created. Signature:", signature);
+    console.log("title", title);
+    console.log("message", message);
+    res.status(200).json({ message: "Journal entry created" });
+
+  } catch (error) {
+    console.error("Error creating journal entry:", error);
+    return res.status(500).json({ error: "Failed to create journal entry" });
+  }
+});
+
+app.get("/fetch/journ-entries", async (req, res) => {
+  const { owner } = req.query;
+  try {
+    const client = await createClient();
+    
+    const filters: any[] = [
+      {
+        memcmp: {
+          offset: 0n,
+          bytes: getBase58Encoder().encode(
+            getJournalEntryStateDiscriminatorBytes()
+          ),
+        },
+      },
+    ];
+
+    if (owner && typeof owner === 'string') {
+      filters.push({
+        memcmp: {
+          offset: 8n,
+          bytes: owner,
+        },
+      });
+    }
+
+    const accounts = await client.rpc
+      .getProgramAccounts(JOURNAL_PROGRAM_ADDRESS, {
+        filters
+      })
+      .send();
+
+    const entries = accounts.map((item) => {
+      try {
+        const decoded = decodeJournalEntryState({
+          address: item.pubkey,
+          data: item.account.data,
+        } as any);
+        return {
+          address: item.pubkey,
+          ...decoded.data,
+        };
+      } catch (e) {
+        console.error(`Failed to decode account ${item.pubkey}:`, e);
+        return null;
+      }
+    }).filter(Boolean);
+
+    return res.status(200).json(entries);
+  } catch (error) {
+    console.error("Error fetching journal entries:", error);
+    return res.status(500).json({ error: "Failed to fetch journal entries" });
+  }
 });
 
 app.listen(PORT, () => {
