@@ -10,20 +10,25 @@ export function NewEntryModal() {
   const showEntryModal = useAppSelector((state) => state.openNewEntryModal);
 
   const handleCreateJournal = async () => {
-    const response = await fetch("http://localhost:8000/create/journal-entry", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: title,
-        message: message,
-      }),
-    });
+    const port = process.env.NEXT_PUBLIC_PORT || 3001;
+    const response = await fetch(
+      `http://localhost:${port}/create/journal-entry`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: title,
+          message: message,
+        }),
+      }
+    );
     const data = await response.json();
     console.log(data);
     setTitle("");
     setMessage("");
+    dispatch(closeNewEntryModal());
   };
 
   return (
