@@ -9,29 +9,23 @@ export function NewEntryModal() {
   const dispatch = useAppDispatch();
   const showEntryModal = useAppSelector((state) => state.openNewEntryModal);
 
-  const submitEntry = () => {
-    console.log("title", title);
-    console.log("message", message);
+  const handleCreateJournal = async () => {
+    const response = await fetch("http://localhost:8000/create/journal-entry", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: title,
+        message: message,
+      }),
+    });
+    const data = await response.json();
+    console.log(data);
     setTitle("");
     setMessage("");
   };
 
-  // const handleCreateJournal = async () => {
-  //   const response = await fetch("http://localhost:3000/create/journal-entry", {
-  //     method: "POST",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //     },
-  //     body: JSON.stringify({
-  //       title: "My Journal",
-  //       message: "Hello World!",
-  //     }),
-  //   });
-  //   const data = await response.json();
-  //   console.log(data);
-  // }
-
-  useEffect(() => {}, [title, message]);
   return (
     <>
       {showEntryModal ? (
@@ -82,11 +76,11 @@ export function NewEntryModal() {
                 </button>
                 <button
                   type="button"
-                  onClick={submitEntry}
+                  onClick={handleCreateJournal}
                   disabled={title.length === 0 || message.length === 0}
                   className={
                     title.length > 0 && message.length > 0
-                      ? "px-4 py-2 bg-orange-300 text-white rounded-md hover:bg-orange-500 hover:duration-300"
+                      ? "px-4 py-2 bg-orange-400 text-white rounded-md hover:bg-orange-300 hover:duration-50"
                       : "px-4 py-2 bg-orange-300 text-white rounded-md cursor-not-allowed"
                   }
                 >

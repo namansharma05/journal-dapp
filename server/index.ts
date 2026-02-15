@@ -1,6 +1,8 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors  from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
   appendTransactionMessageInstruction,
   assertIsSendableTransaction,
@@ -18,13 +20,33 @@ import {
   fetchMaybeJournalEntryCounterState,
 } from "../app/generated/journal/index.ts";
 
-dotenv.config();
+import fs from "fs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from various possible locations
+const possibleEnvPaths = [
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "..", ".env"),
+  path.resolve(__dirname, ".env"),
+  path.resolve(__dirname, "..", ".env"),
+];
+
+for (const envPath of possibleEnvPaths) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    break; // Load first one found
+  }
+}
 
 const app = express();
 
 app.use(cors());
+app.use(express.json());
 
-const PORT = process.env.NEXT_PUBLIC_PORT;
+const PORT = process.env.NEXT_PUBLIC_PORT || 8000;
+console.log(`Resolved PORT for server: ${PORT}`);
 
 async function initializeCounter() {
   try {
@@ -91,14 +113,11 @@ async function initializeCounter() {
   }
 }
 
-app.get("/", (req, res) => {
-  res.send("Hello World!");
-});
-
 app.post("/create/journal-entry", (req, res) => {
-  const { title, message} = req.body;
+  const { title, message } = req.body;
   console.log("title", title);
   console.log("message", message);
+  res.status(200).json({ message: "Journal entry created" });
 });
 
 app.listen(PORT, () => {
