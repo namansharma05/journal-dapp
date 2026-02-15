@@ -5,10 +5,10 @@ export const openNewEntryModalSlice = createSlice({
     name: "openNewEntryModal",
     reducers: {
         openNewEntryModal: (state) => {
-            state = true;
+            return true;
         },
         closeNewEntryModal: (state) => {
-            state = false;
+            return false;
         }
     }
 });
