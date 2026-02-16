@@ -17,7 +17,9 @@ import {
   getU32Encoder,
   getUtf8Encoder,
   getAddressEncoder,
+  getBase58Decoder,
   getBase58Encoder,
+  getBase64Encoder,
 } from "@solana/kit";
 import { createClient } from "./client.ts";
 import {
@@ -28,6 +30,7 @@ import {
   JOURNAL_PROGRAM_ADDRESS,
   decodeJournalEntryState,
   getJournalEntryStateDiscriminatorBytes,
+  fetchAllMaybeJournalEntryState,
 } from "../app/generated/journal/index.ts";
 
 import fs from "fs";
@@ -200,21 +203,25 @@ app.post("/create/journal-entry", async(req, res) => {
 });
 
 app.get("/fetch/journ-entries", async (req, res) => {
-  const { owner } = req.query;
+  const owner = req.query.owner;
   try {
+    console.log("owner is: ", owner);
+
     const client = await createClient();
+
+    const discriminator = getJournalEntryStateDiscriminatorBytes();
     
+    // 1. Setup filters (8-byte discriminator at offset 0)
     const filters: any[] = [
       {
         memcmp: {
           offset: 0n,
-          bytes: getBase58Encoder().encode(
-            getJournalEntryStateDiscriminatorBytes()
-          ),
+          bytes: getBase58Decoder().decode(discriminator),
         },
       },
     ];
 
+    // 2. Add owner filter if provided (owner field starts at offset 8)
     if (owner && typeof owner === 'string') {
       filters.push({
         memcmp: {
@@ -224,29 +231,38 @@ app.get("/fetch/journ-entries", async (req, res) => {
       });
     }
 
+    // 3. Fetch accounts from the program with base64 encoding
+    // This is required because journal entry accounts can be > 128 bytes,
+    // which is the limit for base58 encoding in RPC responses.
     const accounts = await client.rpc
       .getProgramAccounts(JOURNAL_PROGRAM_ADDRESS, {
-        filters
+        filters,
+        encoding: 'base64',
       })
       .send();
 
-    const entries = accounts.map((item) => {
-      try {
-        const decoded = decodeJournalEntryState({
-          address: item.pubkey,
-          data: item.account.data,
-        } as any);
-        return {
-          address: item.pubkey,
-          ...decoded.data,
-        };
-      } catch (e) {
-        console.error(`Failed to decode account ${item.pubkey}:`, e);
-        return null;
-      }
-    }).filter(Boolean);
+    // 4. Decode results
+    const entries = accounts.map((account) => {
+      const dataString = Array.isArray(account.account.data) 
+        ? account.account.data[0] 
+        : account.account.data;
 
+      const decoded = decodeJournalEntryState({
+        address: account.pubkey,
+        programAddress: JOURNAL_PROGRAM_ADDRESS,
+        ...account.account,
+        data: getBase64Encoder().encode(dataString as string),
+      } as any);
+
+      return {
+        address: decoded.address,
+        ...decoded.data,
+      };
+    });
+
+    console.log(`Fetched ${entries.length} entries`);
     return res.status(200).json(entries);
+
   } catch (error) {
     console.error("Error fetching journal entries:", error);
     return res.status(500).json({ error: "Failed to fetch journal entries" });

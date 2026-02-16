@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useWalletConnection } from "@solana/react-hooks";
 
 interface JournalEntry {
-  address: string;
   owner: string;
   title: string;
   message: string;
@@ -25,7 +24,15 @@ export function JournalList() {
           `http://localhost:${port}/fetch/journ-entries?owner=${owner}`
         );
         const data = await response.json();
-        setEntries(data);
+        if (response.ok && Array.isArray(data)) {
+          setEntries(data);
+        } else {
+          console.error(
+            "Failed to fetch entries or data is not an array:",
+            data
+          );
+          setEntries([]);
+        }
       } catch (error) {
         console.error("Error fetching entries:", error);
       } finally {
@@ -47,9 +54,9 @@ export function JournalList() {
         <p>No journal entries found for this wallet.</p>
       ) : (
         <div className="space-y-4">
-          {entries.map((entry) => (
+          {entries.map((entry, index) => (
             <div
-              key={entry.address}
+              key={index}
               className="p-4 bg-white rounded-lg shadow border border-gray-100"
             >
               <h3 className="text-xl font-semibold text-orange-600">
@@ -58,9 +65,6 @@ export function JournalList() {
               <p className="mt-2 text-gray-700 whitespace-pre-wrap">
                 {entry.message}
               </p>
-              <div className="mt-4 text-[10px] text-gray-400 font-mono">
-                PDA: {entry.address}
-              </div>
             </div>
           ))}
         </div>
