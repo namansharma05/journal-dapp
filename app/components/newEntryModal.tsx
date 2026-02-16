@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../redux/hooks";
 import { closeNewEntryModal } from "../redux/slices/openNewEntryModal";
+import { useWalletConnection } from "@solana/react-hooks";
+import { getBase64Encoder, getTransactionDecoder } from "@solana/kit";
 
 export function NewEntryModal() {
+  const { wallet, status } = useWalletConnection();
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
 
@@ -10,25 +13,49 @@ export function NewEntryModal() {
   const showEntryModal = useAppSelector((state) => state.openNewEntryModal);
 
   const handleCreateJournal = async () => {
+    if (status !== "connected" || !wallet) return;
     const port = process.env.NEXT_PUBLIC_PORT || 3001;
-    const response = await fetch(
-      `http://localhost:${port}/create/journal-entry`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: title,
-          message: message,
-        }),
+    const owner = wallet.account.address;
+    try {
+      const response = await fetch(
+        `http://localhost:${port}/create/journal-entry`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            signerAddress: owner,
+            title: title,
+            message: message,
+          }),
+        }
+      );
+      const data = await response.json();
+
+      if (data.transaction) {
+        console.log("Transaction received, signing...");
+        const transactionBytes = getBase64Encoder().encode(data.transaction);
+
+        // Decode the bytes back into a transaction object
+        const transaction = getTransactionDecoder().decode(transactionBytes);
+
+        // Use the wallet directly to sign and send the transaction
+        if (!wallet.sendTransaction) {
+          throw new Error("Wallet does not support sendTransaction");
+        }
+        const signature = await wallet.sendTransaction(transaction as any);
+        console.log("Journal entry created! Signature:", signature);
+
+        setTitle("");
+        setMessage("");
+        dispatch(closeNewEntryModal());
+      } else {
+        console.error("Failed to get transaction from server:", data);
       }
-    );
-    const data = await response.json();
-    console.log(data);
-    setTitle("");
-    setMessage("");
-    dispatch(closeNewEntryModal());
+    } catch (error) {
+      console.error("Error creating journal entry:", error);
+    }
   };
 
   return (
@@ -82,9 +109,9 @@ export function NewEntryModal() {
                 <button
                   type="button"
                   onClick={handleCreateJournal}
-                  disabled={title.length === 0 || message.length === 0}
+                  disabled={title?.length === 0 || message?.length === 0}
                   className={
-                    title.length > 0 && message.length > 0
+                    title?.length > 0 && message?.length > 0
                       ? "px-4 py-2 bg-orange-400 text-white rounded-md hover:bg-orange-300 hover:duration-50"
                       : "px-4 py-2 bg-orange-300 text-white rounded-md cursor-not-allowed"
                   }

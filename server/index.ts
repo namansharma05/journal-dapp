@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors  from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import { address } from "@solana/addresses";
 import {
   appendTransactionMessageInstruction,
   assertIsSendableTransaction,
@@ -20,6 +21,8 @@ import {
   getBase58Decoder,
   getBase58Encoder,
   getBase64Encoder,
+  getBase64Decoder,
+  getTransactionEncoder,
 } from "@solana/kit";
 import { createClient } from "./client.ts";
 import {
@@ -127,7 +130,7 @@ async function initializeCounter() {
 }
 
 app.post("/create/journal-entry", async(req, res) => {
-  const { title, message } = req.body;
+  const { title, message, signerAddress } = req.body;
   try {
     const client = await createClient();
 
@@ -135,13 +138,13 @@ app.post("/create/journal-entry", async(req, res) => {
       client.rpc.getLatestBlockhash().send(),
     ]);
 
-    // 1. Derive the counter PDA (same as in initializeCounter)
+    // 1. Derive the counter PDA
     const [journalEntryCounterAccount] = await getProgramDerivedAddress({
       programAddress: JOURNAL_PROGRAM_ADDRESS,
       seeds: [getUtf8Encoder().encode("journal-counter")],
     });
 
-    // 2. Fetch the current count to derive the journal entry PDA
+    // 2. Fetch the current count
     const maybeCounterAccount = await fetchMaybeJournalEntryCounterState(
       client.rpc,
       journalEntryCounterAccount
@@ -153,59 +156,80 @@ app.post("/create/journal-entry", async(req, res) => {
 
     const currentCount = maybeCounterAccount.data.count;
 
-    // 3. Derive the journal entry PDA: [b"journal-entry", count, signer]
+    // 3. Create a placeholder signer for the user (just the address)
+    // This allows us to build the transaction message on the server.
+    const userAddress = address(signerAddress);
+
+    // 4. Derive the journal entry PDA: [b"journal-entry", count, user]
     const [journalEntryAccount] = await getProgramDerivedAddress({
       programAddress: JOURNAL_PROGRAM_ADDRESS,
       seeds: [
         getUtf8Encoder().encode("journal-entry"),
-        getU32Encoder().encode(currentCount),
-        getAddressEncoder().encode(client.wallet.address),
+        getU32Encoder({ endian: 'little' as any }).encode(currentCount),
+        getAddressEncoder().encode(userAddress),
       ],
     });
 
-    console.log(`Creating journal entry at: ${journalEntryAccount}`);
+    // Log for debugging
+    const userBalance = await client.rpc.getBalance(userAddress).send();
+    console.log(`Preparing transaction. User: ${userAddress}, Balance: ${userBalance.value}, Count: ${currentCount}`);
+    console.log(`Derived Journal Entry PDA: ${journalEntryAccount}`);
+
+    console.log(`Preparing journal entry transaction for: ${userAddress}`);
 
     const createNewJournalentryIx = await getCreateJournalEntryInstructionAsync({
-      signer: client.wallet,
+      signer: { address: userAddress } as any, // We only need the address to build the IX
       title,
       message,
       journalEntryAccount,
     });
 
+    // 5. Build the transaction message
+    // Server is the Fee Payer, User is the instruction signer.
     const transactionMessage = await pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayerSigner(client.wallet, tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
       (tx) => appendTransactionMessageInstruction(createNewJournalentryIx, tx),
-      (tx) => client.estimateAndSetComputeUnitLimit(tx)
+      async (tx) => {
+        try {
+          return await client.estimateAndSetComputeUnitLimit(tx);
+        } catch (e: any) {
+          console.error("Compute unit estimation failed. This usually means the transaction will fail on-chain.");
+          if (e.cause && e.cause.context && e.cause.context.logs) {
+              console.error("Simulation Logs:", e.cause.context.logs);
+          } else if (e.message) {
+              console.error("Error Message:", e.message);
+          }
+          throw e; 
+        }
+      }
     );
 
+    // 6. Sign with the Server Wallet (Fee Payer)
+    // This creates a partially signed transaction with the server's signature.
     const transaction = await signTransactionMessageWithSigners(
       transactionMessage
     );
-    assertIsSendableTransaction(transaction);
-    assertIsTransactionWithBlockhashLifetime(transaction);
 
-    await client.sendAndConfirmTransaction(transaction, {
-      commitment: "confirmed",
+    // 7. Serialize the transaction to wire format and return as base64
+    const transactionBytes = getTransactionEncoder().encode(transaction as any);
+    const fullBase64 = getBase64Decoder().decode(transactionBytes);
+
+    res.status(200).json({ 
+      transaction: fullBase64,
+      message: "Transaction prepared. Please sign with your wallet." 
     });
 
-    const signature = getSignatureFromTransaction(transaction);
-    console.log("Journal Entry Created. Signature:", signature);
-    console.log("title", title);
-    console.log("message", message);
-    res.status(200).json({ message: "Journal entry created" });
-
   } catch (error) {
-    console.error("Error creating journal entry:", error);
-    return res.status(500).json({ error: "Failed to create journal entry" });
+    console.error("Error preparing journal entry:", error);
+    return res.status(500).json({ error: "Failed to prepare journal entry" });
   }
 });
 
 app.get("/fetch/journ-entries", async (req, res) => {
   const owner = req.query.owner;
   try {
-    console.log("owner is: ", owner);
 
     const client = await createClient();
 
