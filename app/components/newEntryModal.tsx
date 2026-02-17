@@ -1,127 +1,257 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAppDispatch, useAppSelector } from "../redux/hooks";
 import { closeNewEntryModal } from "../redux/slices/openNewEntryModal";
-import { useWalletConnection } from "@solana/react-hooks";
-import { getBase64Encoder, getTransactionDecoder } from "@solana/kit";
+import {
+  useWalletConnection,
+  useWalletAccountTransactionSendingSigner,
+} from "@solana/react-hooks";
+import {
+  Address,
+  createSolanaRpc,
+  createTransactionMessage,
+  getBase58Decoder,
+  getProgramDerivedAddress,
+  getU32Encoder,
+  getUtf8Encoder,
+  getAddressEncoder,
+  pipe,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
+  appendTransactionMessageInstruction,
+  signAndSendTransactionMessageWithSigners,
+} from "@solana/kit";
+import { getCreateJournalEntryInstructionAsync } from "../generated/journal/instructions/createJournalEntry";
+import { fetchJournalEntryCounterState } from "../generated/journal/accounts/journalEntryCounterState";
+import { JOURNAL_PROGRAM_ADDRESS } from "../generated/journal/programs/journal";
 
-export function NewEntryModal() {
-  const { wallet, status } = useWalletConnection();
+function NewEntryForm({
+  account,
+  onClose,
+}: {
+  account: any;
+  onClose: () => void;
+}) {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [txSignature, setTxSignature] = useState<string | null>(null);
+  const { wallet } = useWalletConnection();
 
-  const dispatch = useAppDispatch();
-  const showEntryModal = useAppSelector((state) => state.openNewEntryModal);
+  // Get the transaction sending signer for the connected wallet
+  const walletSigner = useWalletAccountTransactionSendingSigner(
+    account,
+    "solana:localnet" // Use localnet for local development
+  );
 
   const handleCreateJournal = async () => {
-    if (status !== "connected" || !wallet) return;
-    const port = process.env.NEXT_PUBLIC_PORT || 3001;
-    const owner = wallet.account.address;
+    if (!wallet) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `http://localhost:${port}/create/journal-entry`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            signerAddress: owner,
-            title: title,
-            message: message,
-          }),
-        }
+      setIsLoading(true);
+      setTxSignature(null);
+
+      const httpProvider = "http://127.0.0.1:8899";
+      const rpc = createSolanaRpc(httpProvider);
+
+      console.log(`Established connection to ${httpProvider}`);
+
+      // 1. Fetch the latest blockhash
+      const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+      console.log(`Latest Blockhash: ${latestBlockhash.blockhash}`);
+
+      // 2. Derive the counter PDA
+      const [journalEntryCounterAccount] = await getProgramDerivedAddress({
+        programAddress: JOURNAL_PROGRAM_ADDRESS,
+        seeds: [getUtf8Encoder().encode("journal-counter")],
+      });
+
+      console.log(`Counter PDA: ${journalEntryCounterAccount}`);
+
+      // 3. Fetch the current count
+      const counterAccount = await fetchJournalEntryCounterState(
+        rpc,
+        journalEntryCounterAccount
       );
-      const data = await response.json();
 
-      if (data.transaction) {
-        console.log("Transaction received, signing...");
-        const transactionBytes = getBase64Encoder().encode(data.transaction);
+      const currentCount = counterAccount.data.count;
+      console.log(`Current count: ${currentCount}`);
 
-        // Decode the bytes back into a transaction object
-        const transaction = getTransactionDecoder().decode(transactionBytes);
+      // 4. Derive the journal entry PDA
+      const [journalEntryAccount] = await getProgramDerivedAddress({
+        programAddress: JOURNAL_PROGRAM_ADDRESS,
+        seeds: [
+          getUtf8Encoder().encode("journal-entry"),
+          getU32Encoder({ endian: "little" as any }).encode(currentCount),
+          getAddressEncoder().encode(account.address as Address),
+        ],
+      });
 
-        // Use the wallet directly to sign and send the transaction
-        if (!wallet.sendTransaction) {
-          throw new Error("Wallet does not support sendTransaction");
-        }
-        const signature = await wallet.sendTransaction(transaction as any);
-        console.log("Journal entry created! Signature:", signature);
+      console.log(`Journal Entry PDA: ${journalEntryAccount}`);
 
-        setTitle("");
-        setMessage("");
-        dispatch(closeNewEntryModal());
-      } else {
-        console.error("Failed to get transaction from server:", data);
-      }
+      // 5. Build the create journal entry instruction
+      const createJournalEntryIx = await getCreateJournalEntryInstructionAsync({
+        signer: walletSigner,
+        title,
+        message,
+        journalEntryAccount,
+      });
+
+      console.log("Instruction created:", createJournalEntryIx);
+
+      // 6. Build the transaction message
+      const transactionMessage = pipe(
+        createTransactionMessage({ version: 0 }),
+        (tx) => setTransactionMessageFeePayerSigner(walletSigner, tx),
+        (tx) =>
+          setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => appendTransactionMessageInstruction(createJournalEntryIx, tx)
+      );
+
+      console.log("Transaction message built");
+
+      // Sign and send the transaction using the accountSigner
+      const signature =
+        await signAndSendTransactionMessageWithSigners(transactionMessage);
+
+      console.log("Transaction sent, signature:", signature);
+
+      // Decode signature to base58
+      const base58Signature = getBase58Decoder().decode(signature);
+      setTxSignature(base58Signature);
+
+      console.log(`✅ Transaction successful! Signature: ${base58Signature}`);
+
+      // Clear form fields on success
+      setTitle("");
+      setMessage("");
+
+      // Auto-close modal after 3 seconds
+      setTimeout(() => {
+        onClose();
+      }, 3000);
     } catch (error) {
-      console.error("Error creating journal entry:", error);
+      console.error("Failed to create journal entry:", error);
+      alert(`Failed to create journal entry: ${error}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <>
-      {showEntryModal ? (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center">
-          <div className="w-[60%] md:w-[50%] lg:w-[35%] bg-white p-6 rounded-lg shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <div className="text-sm">New Entry</div>
-              <div
-                onClick={() => dispatch(closeNewEntryModal())}
-                className="text-sm cursor-pointer"
-              >
-                x
-              </div>
-            </div>
-            <form>
-              <div className="mb-4">
-                <label htmlFor="title" className="block text-sm mb-2">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  required
-                  onChange={(e) => setTitle(e.target.value)}
-                  value={title}
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div className="mb-4">
-                <label htmlFor="message" className="block text-sm mb-2">
-                  Message
-                </label>
-                <textarea
-                  id="message"
-                  required
-                  onChange={(e) => setMessage(e.target.value)}
-                  value={message}
-                  className="w-full px-3 py-2 border rounded-md"
-                />
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => dispatch(closeNewEntryModal())}
-                  className="px-4 py-2 mr-2 text-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateJournal}
-                  disabled={title?.length === 0 || message?.length === 0}
-                  className={
-                    title?.length > 0 && message?.length > 0
-                      ? "px-4 py-2 bg-orange-400 text-white rounded-md hover:bg-orange-300 hover:duration-50"
-                      : "px-4 py-2 bg-orange-300 text-white rounded-md cursor-not-allowed"
-                  }
-                >
-                  Create
-                </button>
-              </div>
-            </form>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center">
+      <div className="w-[60%] md:w-[50%] lg:w-[35%] bg-white p-6 rounded-lg shadow-lg">
+        <div className="flex justify-between items-center mb-4">
+          <div className="text-sm">New Entry</div>
+          <div onClick={onClose} className="text-sm cursor-pointer">
+            x
           </div>
         </div>
+
+        {txSignature ? (
+          <div className="mb-4 p-4 bg-green-100 border border-green-400 rounded-md">
+            <p className="text-sm font-semibold text-green-800 mb-2">
+              ✅ Journal entry created successfully!
+            </p>
+            <p className="text-xs text-green-700 break-all">
+              Signature: {txSignature}
+            </p>
+          </div>
+        ) : null}
+
+        <form>
+          <div className="mb-4">
+            <label htmlFor="title" className="block text-sm mb-2">
+              Title (max 50 characters)
+            </label>
+            <input
+              type="text"
+              id="title"
+              required
+              maxLength={50}
+              onChange={(e) => setTitle(e.target.value)}
+              value={title}
+              className="w-full px-3 py-2 border rounded-md"
+              disabled={isLoading}
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="message" className="block text-sm mb-2">
+              Message (max 100 characters)
+            </label>
+            <textarea
+              id="message"
+              required
+              maxLength={100}
+              onChange={(e) => setMessage(e.target.value)}
+              value={message}
+              className="w-full px-3 py-2 border rounded-md"
+              disabled={isLoading}
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 mr-2 text-gray-600"
+              disabled={isLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateJournal}
+              disabled={
+                title?.length === 0 || message?.length === 0 || isLoading
+              }
+              className={
+                title?.length > 0 && message?.length > 0 && !isLoading
+                  ? "px-4 py-2 bg-orange-400 text-white rounded-md hover:bg-orange-300 hover:duration-50"
+                  : "px-4 py-2 bg-orange-300 text-white rounded-md cursor-not-allowed"
+              }
+            >
+              {isLoading ? "Creating..." : "Create"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function NewEntryModal() {
+  const { wallet, status } = useWalletConnection();
+
+  const dispatch = useAppDispatch();
+  const showEntryModal = useAppSelector((state) => state.openNewEntryModal);
+
+  return (
+    <>
+      {showEntryModal ? (
+        wallet && wallet.account ? (
+          <NewEntryForm
+            account={wallet.account}
+            onClose={() => dispatch(closeNewEntryModal())}
+          />
+        ) : (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center">
+            <div className="w-[60%] md:w-[50%] lg:w-[35%] bg-white p-6 rounded-lg shadow-lg">
+              <p className="text-center mb-4">
+                Please connect your wallet first.
+              </p>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => dispatch(closeNewEntryModal())}
+                  className="px-4 py-2 bg-gray-200 rounded-md"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )
       ) : null}
     </>
   );

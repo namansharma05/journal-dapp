@@ -33,6 +33,7 @@
     "@solana-program/compute-budget": "^0.13.0",
     "@solana/client": "^1.2.0",
     "@solana/kit": "^5.1.0",
+    "@solana/react": "^6.1.0",
     "@solana/react-hooks": "^1.1.5",
     "cors": "^2.8.6",
     "dotenv": "^17.2.4",

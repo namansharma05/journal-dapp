@@ -159,6 +159,13 @@ app.post("/create/journal-entry", async(req, res) => {
     // 3. Create a placeholder signer for the user (just the address)
     // This allows us to build the transaction message on the server.
     const userAddress = address(signerAddress);
+    
+    // helper to make the user look like a signer to the instruction builder
+    // so that it sets the correct AccountRole (WRITABLE_SIGNER).
+    const userSigner = {
+      address: userAddress,
+      signTransaction: () => Promise.reject(new Error("Cannot sign on server")),
+    } as any;
 
     // 4. Derive the journal entry PDA: [b"journal-entry", count, user]
     const [journalEntryAccount] = await getProgramDerivedAddress({
@@ -177,12 +184,22 @@ app.post("/create/journal-entry", async(req, res) => {
 
     console.log(`Preparing journal entry transaction for: ${userAddress}`);
 
-    const createNewJournalentryIx = await getCreateJournalEntryInstructionAsync({
-      signer: { address: userAddress } as any, // We only need the address to build the IX
+    const createNewJournalentryIxRaw = await getCreateJournalEntryInstructionAsync({
+      signer: userSigner,
       title,
       message,
       journalEntryAccount,
     });
+
+    // Remove the signer implementation from the user account so the server doesn't try to sign it,
+    // but keep the AccountRole as WRITABLE_SIGNER so the network knows it requires a signature.
+    const createNewJournalentryIx = {
+      ...createNewJournalentryIxRaw,
+      accounts: createNewJournalentryIxRaw.accounts.map((acc) => ({
+        address: acc.address,
+        role: acc.role,
+      })),
+    };
 
     // 5. Build the transaction message
     // Server is the Fee Payer, User is the instruction signer.
@@ -190,20 +207,7 @@ app.post("/create/journal-entry", async(req, res) => {
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayerSigner(client.wallet, tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      (tx) => appendTransactionMessageInstruction(createNewJournalentryIx, tx),
-      async (tx) => {
-        try {
-          return await client.estimateAndSetComputeUnitLimit(tx);
-        } catch (e: any) {
-          console.error("Compute unit estimation failed. This usually means the transaction will fail on-chain.");
-          if (e.cause && e.cause.context && e.cause.context.logs) {
-              console.error("Simulation Logs:", e.cause.context.logs);
-          } else if (e.message) {
-              console.error("Error Message:", e.message);
-          }
-          throw e; 
-        }
-      }
+      (tx) => appendTransactionMessageInstruction(createNewJournalentryIx, tx)
     );
 
     // 6. Sign with the Server Wallet (Fee Payer)
