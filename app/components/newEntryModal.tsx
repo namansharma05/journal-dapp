@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useAppDispatch, useAppSelector } from "../redux/hooks";
 import { closeNewEntryModal } from "../redux/slices/openNewEntryModal";
-import {
-  useWalletConnection,
-  useWalletAccountTransactionSendingSigner,
-} from "@solana/react-hooks";
+import { useWalletAccountTransactionSendingSigner } from "@solana/react";
+import { useWalletConnection } from "@solana/react-hooks";
 import {
   Address,
   createSolanaRpc,
@@ -40,7 +38,7 @@ function NewEntryForm({
   // Get the transaction sending signer for the connected wallet
   const walletSigner = useWalletAccountTransactionSendingSigner(
     account,
-    "solana:localnet" // Use localnet for local development
+    "solana:devnet" // Use localnet for local development
   );
 
   const handleCreateJournal = async () => {
