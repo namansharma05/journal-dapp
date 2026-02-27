@@ -12,37 +12,6 @@ export function JournalList() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchEntries = async () => {
-      if (status !== "connected" || !wallet) return;
-
-      setLoading(true);
-      try {
-        const port = process.env.NEXT_PUBLIC_PORT || 3001;
-        const owner = wallet.account.address;
-        const response = await fetch(
-          `http://localhost:${port}/fetch/journ-entries?owner=${owner}`
-        );
-        const data = await response.json();
-        if (response.ok && Array.isArray(data)) {
-          setEntries(data);
-        } else {
-          console.error(
-            "Failed to fetch entries or data is not an array:",
-            data
-          );
-          setEntries([]);
-        }
-      } catch (error) {
-        console.error("Error fetching entries:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEntries();
-  }, [wallet, status]);
-
   if (status !== "connected") return null;
 
   return (
