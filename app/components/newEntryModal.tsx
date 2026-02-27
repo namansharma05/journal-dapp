@@ -21,6 +21,7 @@ import {
   getBase64EncodedWireTransaction,
   type TransactionSigner,
   type TransactionMessage,
+  lamports,
 } from "@solana/kit";
 import {
   fetchMaybeJournalEntryCounterState,
@@ -28,6 +29,7 @@ import {
   JOURNAL_PROGRAM_ADDRESS,
 } from "../generated/journal";
 import { createClient } from "../../server/client";
+import { LAMPORTS_PER_SOL } from "@solana/client";
 
 function NewEntryForm({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState("");
@@ -66,6 +68,8 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
 
       const rpc = createSolanaRpc("http://127.0.0.1:8899");
       const walletAddress = wallet!.account!.address;
+
+      await rpc.requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 10n)).send();
 
       console.log("Step 1: Get latest blockhash");
       const { value: latestBlockhash } = await rpc
