@@ -44,3 +44,5 @@ next-env.d.ts
 /anchor/.anchor/
 /anchor/target/
 /test-ledger
+
+.surfpool
