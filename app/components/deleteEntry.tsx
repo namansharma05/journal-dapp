@@ -173,9 +173,26 @@ export function DeleteEntryModal() {
       setTimeout(() => {
         dispatch(clearDeletingEntry());
       }, 2000);
-    } catch (err) {
-      console.error("Error Deleting Entry:", err);
-      dispatch(clearDeletingEntry());
+    } catch (e: any) {
+      console.error("Error Deleting Entry:", e);
+      try {
+        const errorDetails = stringifyWithBigInt(e, 2);
+        console.log("Error details:", errorDetails);
+      } catch (logErr) {
+        console.log("Could not stringify error object: ", e);
+      }
+
+      let errorMessage = "An unexpected error occurred";
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (typeof e === "string") {
+        errorMessage = e;
+      } else if (e && typeof e === "object" && e.message) {
+        errorMessage = e.message;
+      } else if (e && typeof e === "object") {
+        errorMessage = stringifyWithBigInt(e, 0);
+      }
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -195,19 +212,31 @@ export function DeleteEntryModal() {
             ✕
           </button>
         </div>
-        <div className="flex items-center justify-evenly">
-          <button
-            onClick={handleCancel}
-            className="px-4 py-2 rounded-xl cursor-pointer border"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            className="px-4 py-2 bg-orange-400 rounded-xl cursor-pointer border hover:bg-orange-300 hover:duration-50"
-          >
-            Confirm
-          </button>
+        <div className="space-y-4">
+          {error && (
+            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+          {txSignature && (
+            <div className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-xl text-sm break-all">
+              Confirmed! {txSignature.slice(0, 20)}...
+            </div>
+          )}
+          <div className="flex items-center justify-evenly">
+            <button
+              onClick={handleCancel}
+              className="px-4 py-2 rounded-xl cursor-pointer border"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="px-4 py-2 bg-orange-400 rounded-xl cursor-pointer border hover:bg-orange-300 hover:duration-50"
+            >
+              {isLoading ? "Deleting..." : "Delete"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
