@@ -4,7 +4,7 @@ export const journalSlice = createSlice({
     name: "journal",
     initialState: {
         refreshTrigger: 0,
-        editingEntry: null as { owner: string; title: string; message: string; index: number } | null,
+        editingEntry: null as { owner: string; title: string; message: string; index: number; id: number; address: string } | null,
     },
     reducers: {
         incrementRefreshTrigger: (state) => {

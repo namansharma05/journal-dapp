@@ -37,7 +37,7 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import { JOURNAL_PROGRAM_ADDRESS } from "../programs/index.ts";
+import { JOURNAL_PROGRAM_ADDRESS } from "../programs/journal.ts";
 import { getAccountMetaFactory, type ResolvedAccount } from "../shared/index.ts";
 
 export const CREATE_JOURNAL_ENTRY_DISCRIMINATOR = new Uint8Array([
@@ -95,8 +95,8 @@ export function getCreateJournalEntryInstructionDataEncoder(): Encoder<CreateJou
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["title", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
-      ["message", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
+      ["title", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder({ endian: "little" as any }))],
+      ["message", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder({ endian: "little" as any }))],
     ]),
     (value) => ({
       ...value,
@@ -108,8 +108,8 @@ export function getCreateJournalEntryInstructionDataEncoder(): Encoder<CreateJou
 export function getCreateJournalEntryInstructionDataDecoder(): Decoder<CreateJournalEntryInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["title", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
-    ["message", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
+    ["title", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder({ endian: "little" as any }))],
+    ["message", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder({ endian: "little" as any }))],
   ]);
 }
 

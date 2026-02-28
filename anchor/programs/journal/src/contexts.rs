@@ -18,7 +18,7 @@ pub struct DeleteEntry<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(count: u32)]
+#[instruction(title: String, message: String, count: u32)]
 pub struct UpdateEntry<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,

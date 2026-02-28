@@ -5,12 +5,9 @@ import { useWalletConnection } from "@solana/react-hooks";
 import {
   createSolanaRpc,
   getProgramDerivedAddress,
-  getBytesEncoder,
-  getU32Encoder,
   getAddressEncoder,
+  getU32Encoder,
   appendTransactionMessageInstruction,
-  assertIsSendableTransaction,
-  assertIsTransactionWithBlockhashLifetime,
   createTransactionMessage,
   pipe,
   setTransactionMessageFeePayerSigner,
@@ -20,7 +17,6 @@ import {
   getBase58Encoder,
   getBase64EncodedWireTransaction,
   type TransactionSigner,
-  type TransactionMessage,
   lamports,
 } from "@solana/kit";
 import {
@@ -63,6 +59,24 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
     return signer as unknown as TransactionSigner;
   }, [wallet]);
 
+  const stringifyWithBigInt = (obj: any, indent = 2) => {
+    return JSON.stringify(
+      obj,
+      (key, value) => {
+        if (typeof value === "bigint") return value.toString();
+        if (value instanceof Error) {
+          const error: any = {};
+          Object.getOwnPropertyNames(value).forEach((prop) => {
+            error[prop] = (value as any)[prop];
+          });
+          return error;
+        }
+        return value;
+      },
+      indent
+    );
+  };
+
   async function createNewEntry() {
     try {
       setIsLoading(true);
@@ -75,109 +89,73 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
         .requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 10n))
         .send();
 
-      console.log("Step 1: Get latest blockhash");
       const { value: latestBlockhash } = await rpc
         .getLatestBlockhash({ commitment: "confirmed" })
         .send();
 
-      console.log("Blockhash:", latestBlockhash.blockhash);
-      console.log("Wallet address:", walletAddress);
-
       let entryNumber = 0;
 
-      try {
-        console.log("Step 2: Derive journal counter PDA");
-        const [journalCounterAccountPda] = await getProgramDerivedAddress({
-          programAddress: JOURNAL_PROGRAM_ADDRESS,
-          seeds: [
-            getBytesEncoder().encode(
-              new Uint8Array([
-                106, 111, 117, 114, 110, 97, 108, 45, 99, 111, 117, 110, 116,
-                101, 114,
-              ])
-            ),
-          ],
-        });
+      const [journalCounterAccountPda] = await getProgramDerivedAddress({
+        programAddress: JOURNAL_PROGRAM_ADDRESS,
+        seeds: [new TextEncoder().encode("journal-counter")],
+      });
 
-        console.log("Counter PDA:", journalCounterAccountPda);
+      const maybeCounterAccount = await fetchMaybeJournalEntryCounterState(
+        rpc,
+        journalCounterAccountPda
+      );
 
-        console.log("Step 3: Check if counter account already exists");
-        const maybeCounterAccount = await fetchMaybeJournalEntryCounterState(
-          rpc,
-          journalCounterAccountPda
-        );
-
-        if (maybeCounterAccount?.exists) {
-          entryNumber = maybeCounterAccount.data?.count ?? 0;
-        }
-
-        console.log("Entry number:", entryNumber);
-
-        console.log("Step 4: Generate journal entry account PDA");
-        const [journalEntryAccountPda] = await getProgramDerivedAddress({
-          programAddress: JOURNAL_PROGRAM_ADDRESS,
-          seeds: [
-            new TextEncoder().encode("journal-entry"),
-            getU32Encoder({ endian: "little" as any }).encode(entryNumber),
-            getAddressEncoder().encode(walletAddress as any),
-          ],
-        });
-
-        console.log("Entry PDA:", journalEntryAccountPda);
-
-        console.log("Step 5: Build create journal entry instruction");
-        const createEntryIx = await getCreateJournalEntryInstructionAsync({
-          signer: walletSigner!,
-          journalEntryCounterAccount: journalCounterAccountPda,
-          journalEntryAccount: journalEntryAccountPda,
-          title,
-          message,
-        });
-
-        console.log("Step 6: Build transaction message");
-        const transactionMessage = await pipe(
-          createTransactionMessage({ version: 0 }),
-          (tx) => setTransactionMessageFeePayerSigner(walletSigner!, tx),
-          (tx) =>
-            setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-          (tx) => appendTransactionMessageInstruction(createEntryIx, tx)
-        );
-        console.log("Transaction message built");
-
-        console.log("Step 7: Sign and send transaction");
-        const signature =
-          await signAndSendTransactionMessageWithSigners(transactionMessage);
-        console.log("Transaction sent with signature:", signature);
-
-        const base58Signature =
-          typeof signature === "string"
-            ? signature
-            : getBase58Decoder().decode(signature as any);
-
-        setTxSignature(base58Signature);
-        setTitle("");
-        setMessage("");
-
-        console.log("Transaction successful. Signature:", base58Signature);
-
-        // Trigger list refresh
-        dispatch(incrementRefreshTrigger());
-
-        // Close modal after brief delay
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      } catch (err) {
-        console.error("Error during transaction:", err);
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to create journal entry";
-        setError(errorMessage);
+      if (maybeCounterAccount?.exists) {
+        entryNumber = maybeCounterAccount.data?.count ?? 0;
       }
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to create journal entry";
-      setError(errorMessage);
+
+      const [journalEntryAccountPda] = await getProgramDerivedAddress({
+        programAddress: JOURNAL_PROGRAM_ADDRESS,
+        seeds: [
+          new TextEncoder().encode("journal-entry"),
+          getU32Encoder({ endian: "little" as any }).encode(entryNumber),
+          getAddressEncoder().encode(walletAddress as any),
+        ],
+      });
+
+      const createEntryIx = await getCreateJournalEntryInstructionAsync({
+        signer: walletSigner!,
+        journalEntryCounterAccount: journalCounterAccountPda,
+        journalEntryAccount: journalEntryAccountPda,
+        title,
+        message,
+      });
+
+      const transactionMessage = await pipe(
+        createTransactionMessage({ version: 0 }),
+        (tx) => setTransactionMessageFeePayerSigner(walletSigner!, tx),
+        (tx) =>
+          setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+        (tx) => appendTransactionMessageInstruction(createEntryIx, tx)
+      );
+
+      const signature =
+        await signAndSendTransactionMessageWithSigners(transactionMessage);
+
+      const base58Signature =
+        typeof signature === "string"
+          ? signature
+          : getBase58Decoder().decode(signature as any);
+
+      setTxSignature(base58Signature);
+      setTitle("");
+      setMessage("");
+
+      dispatch(incrementRefreshTrigger());
+
+      setTimeout(() => {
+        onClose();
+      }, 2000);
+    } catch (err: any) {
       console.error("Error creating journal entry:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : stringifyWithBigInt(err, 0);
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

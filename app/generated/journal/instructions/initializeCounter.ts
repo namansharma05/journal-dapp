@@ -31,7 +31,7 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import { JOURNAL_PROGRAM_ADDRESS } from "../programs/index.ts";
+import { JOURNAL_PROGRAM_ADDRESS } from "../programs/journal.ts";
 import { getAccountMetaFactory, type ResolvedAccount } from "../shared/index.ts";
 
 export const INITIALIZE_COUNTER_DISCRIMINATOR = new Uint8Array([

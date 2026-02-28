@@ -38,7 +38,7 @@ import {
   type WritableAccount,
   type WritableSignerAccount,
 } from "@solana/kit";
-import { JOURNAL_PROGRAM_ADDRESS } from "../programs/index.ts";
+import { JOURNAL_PROGRAM_ADDRESS } from "../programs/journal.ts";
 import {
   expectAddress,
   expectSome,
@@ -98,9 +98,9 @@ export function getUpdateJournalEntryInstructionDataEncoder(): Encoder<UpdateJou
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["title", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
-      ["message", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
-      ["count", getU32Encoder()],
+      ["title", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder({ endian: "little" as any }))],
+      ["message", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder({ endian: "little" as any }))],
+      ["count", getU32Encoder({ endian: "little" as any })],
     ]),
     (value) => ({
       ...value,
@@ -112,9 +112,9 @@ export function getUpdateJournalEntryInstructionDataEncoder(): Encoder<UpdateJou
 export function getUpdateJournalEntryInstructionDataDecoder(): Decoder<UpdateJournalEntryInstructionData> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["title", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
-    ["message", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
-    ["count", getU32Decoder()],
+    ["title", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder({ endian: "little" as any }))],
+    ["message", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder({ endian: "little" as any }))],
+    ["count", getU32Decoder({ endian: "little" as any })],
   ]);
 }
 
@@ -191,7 +191,7 @@ export async function getUpdateJournalEntryInstructionAsync<
             106, 111, 117, 114, 110, 97, 108, 45, 101, 110, 116, 114, 121,
           ]),
         ),
-        getU32Encoder().encode(expectSome(args.count)),
+        getU32Encoder({ endian: "little" as any }).encode(expectSome(args.count)),
         getAddressEncoder().encode(expectAddress(accounts.signer.value)),
       ],
     });

@@ -34,7 +34,8 @@ export const JournalAccount = {
   JournalEntryCounterState: 0,
   JournalEntryState: 1,
 } as const;
-export type JournalAccount = (typeof JournalAccount)[keyof typeof JournalAccount];
+export type JournalAccount =
+  (typeof JournalAccount)[keyof typeof JournalAccount];
 
 export function identifyJournalAccount(
   account: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
@@ -73,7 +74,8 @@ export const JournalInstruction = {
   InitializeCounter: 2,
   UpdateJournalEntry: 3,
 } as const;
-export type JournalInstruction = (typeof JournalInstruction)[keyof typeof JournalInstruction];
+export type JournalInstruction =
+  (typeof JournalInstruction)[keyof typeof JournalInstruction];
 
 export function identifyJournalInstruction(
   instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array,
@@ -132,16 +134,16 @@ export type ParsedJournalInstruction<
   TProgram extends string = "91be9qkpnxDk6vrFc1fpxz7pxB3Ec5aAhgVussaw1VSj",
 > =
   | ({
-      instructionType: (typeof JournalInstruction)["CreateJournalEntry"];
+      instructionType: typeof JournalInstruction.CreateJournalEntry;
     } & ParsedCreateJournalEntryInstruction<TProgram>)
   | ({
-      instructionType: (typeof JournalInstruction)["DeleteJournalEntry"];
+      instructionType: typeof JournalInstruction.DeleteJournalEntry;
     } & ParsedDeleteJournalEntryInstruction<TProgram>)
   | ({
-      instructionType: (typeof JournalInstruction)["InitializeCounter"];
+      instructionType: typeof JournalInstruction.InitializeCounter;
     } & ParsedInitializeCounterInstruction<TProgram>)
   | ({
-      instructionType: (typeof JournalInstruction)["UpdateJournalEntry"];
+      instructionType: typeof JournalInstruction.UpdateJournalEntry;
     } & ParsedUpdateJournalEntryInstruction<TProgram>);
 
 export function parseJournalInstruction<TProgram extends string>(

@@ -19,6 +19,8 @@ interface JournalEntry {
   owner: string;
   title: string;
   message: string;
+  id: number;
+  address: string;
 }
 
 export function JournalList() {
@@ -93,6 +95,8 @@ export function JournalList() {
             owner: decoded.data.owner,
             title: decoded.data.title,
             message: decoded.data.message,
+            id: decoded.data.id,
+            address: accountInfo.pubkey,
           });
         } catch (err) {
           console.error(`Failed to decode account ${accountInfo.pubkey}:`, err);

@@ -27,6 +27,7 @@ pub mod journal {
         journal_entry_account.owner = ctx.accounts.signer.key();
         journal_entry_account.title = title;
         journal_entry_account.message = message;
+        journal_entry_account.id = journal_entry_counter_account.count;
 
         journal_entry_counter_account.count += 1;
         Ok(())

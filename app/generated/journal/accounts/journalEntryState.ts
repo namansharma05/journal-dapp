@@ -56,12 +56,14 @@ export type JournalEntryState = {
   owner: Address;
   title: string;
   message: string;
+  id: number;
 };
 
 export type JournalEntryStateArgs = {
   owner: Address;
   title: string;
   message: string;
+  id: number;
 };
 
 /** Gets the encoder for {@link JournalEntryStateArgs} account data. */
@@ -72,6 +74,7 @@ export function getJournalEntryStateEncoder(): Encoder<JournalEntryStateArgs> {
       ["owner", getAddressEncoder()],
       ["title", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
       ["message", addEncoderSizePrefix(getUtf8Encoder(), getU32Encoder())],
+      ["id", getU32Encoder()],
     ]),
     (value) => ({ ...value, discriminator: JOURNAL_ENTRY_STATE_DISCRIMINATOR }),
   );
@@ -84,6 +87,7 @@ export function getJournalEntryStateDecoder(): Decoder<JournalEntryState> {
     ["owner", getAddressDecoder()],
     ["title", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
     ["message", addDecoderSizePrefix(getUtf8Decoder(), getU32Decoder())],
+    ["id", getU32Decoder()],
   ]);
 }
 

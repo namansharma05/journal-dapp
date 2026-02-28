@@ -8,6 +8,7 @@ pub struct JournalEntryState {
     pub title: String,
     #[max_len(100)]
     pub message: String,
+    pub id: u32,
 }
 
 #[account]
