@@ -8,7 +8,7 @@ import { store } from "../redux/store";
 import { autoDiscover, createClient } from "@solana/client";
 
 const client = createClient({
-  endpoint: "http://localhost:8899",
+  endpoint: process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com",
   walletConnectors: autoDiscover(),
 });
 

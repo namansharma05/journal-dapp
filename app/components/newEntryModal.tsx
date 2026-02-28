@@ -1,9 +1,11 @@
+"use client";
 import { useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../redux/hooks";
 import { closeNewEntryModal } from "../redux/slices/openNewEntryModal";
 import { useWalletConnection } from "@solana/react-hooks";
 import {
   createSolanaRpc,
+  compileTransaction,
   getProgramDerivedAddress,
   getAddressEncoder,
   getU32Encoder,
@@ -82,12 +84,30 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
       setIsLoading(true);
       setError(null);
 
-      const rpc = createSolanaRpc("http://127.0.0.1:8899");
+      const rpc = createSolanaRpc(
+        process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com"
+      );
       const walletAddress = wallet!.account!.address;
 
-      await rpc
-        .requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 10n))
-        .send();
+      const balanceResponse = await rpc.getBalance(walletAddress).send();
+      const balance = balanceResponse.value;
+      console.log("Current wallet balance:", balance, "lamports");
+
+      if (balance < lamports(LAMPORTS_PER_SOL / 20n)) {
+        console.log("Low balance, requesting airdrop...");
+        try {
+          await rpc
+            .requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 1n))
+            .send();
+        } catch (e) {
+          console.warn("Airdrop failed:", e);
+          if (balance === 0n) {
+            throw new Error(
+              "Insufficient balance and airdrop failed. Please get some devnet SOL from https://faucet.solana.com/"
+            );
+          }
+        }
+      }
 
       const { value: latestBlockhash } = await rpc
         .getLatestBlockhash({ commitment: "confirmed" })
@@ -134,6 +154,23 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
         (tx) => appendTransactionMessageInstruction(createEntryIx, tx)
       );
 
+      // Simulation
+      const transaction = compileTransaction(transactionMessage);
+      const wireTransaction = getBase64EncodedWireTransaction(transaction);
+      const simulation = await rpc
+        .simulateTransaction(wireTransaction, {
+          commitment: "confirmed",
+          sigVerify: false,
+          encoding: "base64",
+        } as any)
+        .send();
+
+      if (simulation.value.err) {
+        throw new Error(
+          `Simulation failed: ${stringifyWithBigInt(simulation.value.err)}`
+        );
+      }
+
       const signature =
         await signAndSendTransactionMessageWithSigners(transactionMessage);
 
@@ -143,6 +180,29 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
           : getBase58Decoder().decode(signature as any);
 
       setTxSignature(base58Signature);
+
+      // Wait for confirmation before refreshing
+      console.log("Waiting for transaction confirmation...");
+      let confirmed = false;
+      let attempts = 0;
+      while (!confirmed && attempts < 30) {
+        const statuses = await rpc
+          .getSignatureStatuses([base58Signature as any])
+          .send();
+        const status = statuses.value[0];
+        if (
+          status &&
+          (status.confirmationStatus === "confirmed" ||
+            status.confirmationStatus === "finalized")
+        ) {
+          confirmed = true;
+          console.log("Transaction confirmed!");
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          attempts++;
+        }
+      }
+
       setTitle("");
       setMessage("");
 

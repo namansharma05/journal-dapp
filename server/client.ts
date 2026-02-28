@@ -41,8 +41,8 @@ let client: Client | undefined;
 export async function createClient(): Promise<Client> {
     if (!client) {
         // Create RPC objects and airdrop function.
-        const rpc = createSolanaRpc(process.env.NEXT_PUBLIC_RPC_URL as string);
-        const rpcSubscriptions = createSolanaRpcSubscriptions(process.env.NEXT_PUBLIC_RPC_SUB as string);
+        const rpc = createSolanaRpc(process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com");
+        const rpcSubscriptions = createSolanaRpcSubscriptions(process.env.NEXT_PUBLIC_RPC_SUB || "wss://api.devnet.solana.com/");
 
         const wallet = await createSignerFromKeyPair(
             await createKeyPairFromBytes(

@@ -5,6 +5,7 @@ import {
   createSolanaRpc,
   getAddressEncoder,
   getBase58Decoder,
+  getBase64Decoder,
   getBase64Encoder,
 } from "@solana/kit";
 import {
@@ -36,7 +37,9 @@ export function JournalList() {
 
     try {
       setLoading(true);
-      const rpc = createSolanaRpc("http://127.0.0.1:8899");
+      const rpc = createSolanaRpc(
+        process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com"
+      );
 
       const discriminator = getJournalEntryStateDiscriminatorBytes();
       const ownerAddressBytes = getAddressEncoder().encode(
@@ -61,6 +64,7 @@ export function JournalList() {
               },
             },
           ],
+          encoding: "base64",
         })
         .send();
 

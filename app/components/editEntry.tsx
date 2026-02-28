@@ -130,16 +130,29 @@ export function EditEntryModal() {
       setError(null);
       setTxSignature(null);
 
-      const rpc = createSolanaRpc("http://localhost:8899");
+      const rpc = createSolanaRpc(
+        process.env.NEXT_PUBLIC_RPC_URL || "https://api.devnet.solana.com"
+      );
       const walletAddress = wallet!.account!.address;
 
-      // Request airdrop for fees, similar to newEntryModal
-      try {
-        await rpc
-          .requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 10n))
-          .send();
-      } catch (e) {
-        console.warn("Airdrop failed, but proceeding anyway:", e);
+      const balanceResponse = await rpc.getBalance(walletAddress).send();
+      const balance = balanceResponse.value;
+      console.log("Current wallet balance:", balance, "lamports");
+
+      if (balance < lamports(LAMPORTS_PER_SOL / 20n)) {
+        console.log("Low balance, requesting airdrop...");
+        try {
+          await rpc
+            .requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 1n))
+            .send();
+        } catch (e) {
+          console.warn("Airdrop failed:", e);
+          if (balance === 0n) {
+            throw new Error(
+              "Insufficient balance and airdrop failed. Please get some devnet SOL from https://faucet.solana.com/"
+            );
+          }
+        }
       }
 
       const { value: latestBlockhash } = await rpc
@@ -188,6 +201,28 @@ export function EditEntryModal() {
 
       setTxSignature(base58Signature);
       console.log("Transaction successful. Signature:", base58Signature);
+
+      // Wait for confirmation before refreshing
+      console.log("Waiting for transaction confirmation...");
+      let confirmed = false;
+      let attempts = 0;
+      while (!confirmed && attempts < 30) {
+        const statuses = await rpc
+          .getSignatureStatuses([base58Signature as any])
+          .send();
+        const status = statuses.value[0];
+        if (
+          status &&
+          (status.confirmationStatus === "confirmed" ||
+            status.confirmationStatus === "finalized")
+        ) {
+          confirmed = true;
+          console.log("Transaction confirmed!");
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          attempts++;
+        }
+      }
 
       // Trigger list refresh
       dispatch(incrementRefreshTrigger());
