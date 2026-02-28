@@ -12,6 +12,8 @@ import {
   getJournalEntryStateDiscriminatorBytes,
   decodeJournalEntryState,
 } from "../generated/journal";
+import { DeleteEntry } from "./deleteEntry";
+import { EditEntry, EditEntryModal } from "./editEntry";
 
 interface JournalEntry {
   owner: string;
@@ -157,17 +159,14 @@ export function JournalList() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <button className="px-4 py-2 rounded-xl cursor-pointer border text-sm">
-                  Edit
-                </button>
-                <button className="px-4 py-2 bg-orange-400 rounded-xl cursor-pointer border hover:bg-orange-300 hover:duration-50">
-                  Delete
-                </button>
+                <EditEntry entry={entry} index={index} />
+                <DeleteEntry />
               </div>
             </div>
           ))}
         </div>
       )}
+      <EditEntryModal />
     </section>
   );
 }
