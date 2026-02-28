@@ -12,7 +12,7 @@ import {
   getJournalEntryStateDiscriminatorBytes,
   decodeJournalEntryState,
 } from "../generated/journal";
-import { DeleteEntry } from "./deleteEntry";
+import { DeleteEntry, DeleteEntryModal } from "./deleteEntry";
 import { EditEntry, EditEntryModal } from "./editEntry";
 
 interface JournalEntry {
@@ -164,13 +164,14 @@ export function JournalList() {
               </div>
               <div className="flex gap-2">
                 <EditEntry entry={entry} index={index} />
-                <DeleteEntry />
+                <DeleteEntry entry={entry} index={index} />
               </div>
             </div>
           ))}
         </div>
       )}
       <EditEntryModal />
+      <DeleteEntryModal />
     </section>
   );
 }
