@@ -28,6 +28,7 @@ import {
   getCreateJournalEntryInstructionAsync,
   JOURNAL_PROGRAM_ADDRESS,
 } from "../generated/journal";
+import { incrementRefreshTrigger } from "../redux/slices/journal";
 import { createClient } from "../../server/client";
 import { LAMPORTS_PER_SOL } from "@solana/client";
 
@@ -38,6 +39,7 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
   const [txSignature, setTxSignature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { wallet } = useWalletConnection();
+  const dispatch = useAppDispatch();
 
   const walletSigner = useMemo(() => {
     if (!wallet?.account || !wallet?.sendTransaction) return undefined;
@@ -69,7 +71,9 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
       const rpc = createSolanaRpc("http://127.0.0.1:8899");
       const walletAddress = wallet!.account!.address;
 
-      await rpc.requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 10n)).send();
+      await rpc
+        .requestAirdrop(walletAddress, lamports(LAMPORTS_PER_SOL * 10n))
+        .send();
 
       console.log("Step 1: Get latest blockhash");
       const { value: latestBlockhash } = await rpc
@@ -155,6 +159,9 @@ function NewEntryForm({ onClose }: { onClose: () => void }) {
         setMessage("");
 
         console.log("Transaction successful. Signature:", base58Signature);
+
+        // Trigger list refresh
+        dispatch(incrementRefreshTrigger());
 
         // Close modal after brief delay
         setTimeout(() => {
