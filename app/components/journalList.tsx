@@ -116,7 +116,7 @@ export function JournalList() {
   if (status !== "connected") return null;
 
   return (
-    <div className="max-w-3xl mx-auto mt-8 p-6">
+    <section className="w-full max-w-3xl mx-auto mt-8 p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Your Journal Entries</h2>
         <button
@@ -144,20 +144,30 @@ export function JournalList() {
           {entries.map((entry, index) => (
             <div
               key={index}
-              className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group"
+              className="group flex items-center justify-between rounded-xl border border-border-low bg-card px-4 py-3 text-left text-sm font-medium transition hover:-translate-y-0.5 hover:shadow-sm"
             >
-              <div className="flex justify-between items-start">
-                <h3 className="text-xl font-bold text-gray-800 group-hover:text-orange-600 transition-colors">
-                  {entry.title}
-                </h3>
+              <div>
+                <div className="flex justify-between items-start">
+                  <h3 className="text-xl font-bold text-gray-800">
+                    {entry.title}
+                  </h3>
+                </div>
+                <p className="mt-3 text-gray-600 whitespace-pre-wrap leading-relaxed">
+                  {entry.message}
+                </p>
               </div>
-              <p className="mt-3 text-gray-600 whitespace-pre-wrap leading-relaxed">
-                {entry.message}
-              </p>
+              <div className="flex gap-2">
+                <button className="px-4 py-2 rounded-xl cursor-pointer border text-sm">
+                  Edit
+                </button>
+                <button className="px-4 py-2 bg-orange-400 rounded-xl cursor-pointer border hover:bg-orange-300 hover:duration-50">
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
